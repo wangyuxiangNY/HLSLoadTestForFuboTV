@@ -31,7 +31,7 @@ import org.apache.jmeter.threads.gui.ThreadGroupGui;
 import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jmeter.visualizers.RespTimeGraphVisualizer;
 import org.apache.jmeter.visualizers.ViewResultsFullVisualizer;
-import org.apache.jorphan.collections.HashTree;
+import org.apache.jorphan.collections.ListedHashTree;
 
 public class JmeterCreator {
 	
@@ -62,49 +62,16 @@ public class JmeterCreator {
 	        jsonProcessor.setMatchNumbers("1");
 	        jsonProcessor.setJsonPathExpressions("$.id_token");
 	        
-	        /*
 	        
-	        sampler2 = createRequest("Get Stream", "GET", "api.fubo.tv", "/v3/kgraph/v1/networks/88199/stream", null);
-	        //add header for authentication
-	        HeaderManager headManager = new HeaderManager();
-			headManager.setName("header for Autho");
-			headManager.setEnabled(true);
-			headManager.setProperty(TestElement.TEST_CLASS,HeaderManager.class.getName());
-			headManager.setProperty(TestElement.GUI_CLASS,HeaderPanel.class.getName());
-			Header header = new Header("Authorization","Bearer ${id_token}");
-		    headManager.add(header);
-			
-			//Exract Stream Domain
-		    RegexExtractor domainExtractor = new RegexExtractor();
-		    domainExtractor.setName("Exract Stream Domain");
-		    domainExtractor.setEnabled(true);
-		    domainExtractor.setProperty(TestElement.TEST_CLASS,RegexExtractor.class.getName());
-		    domainExtractor.setProperty(TestElement.GUI_CLASS,RegexExtractorGui.class.getName());
-		    domainExtractor.setRegex("{\"streamUrl\":\"https://(.*)/(.*)\",\"sessionTrack");
-		    domainExtractor.setMatchNumber(1);
-		    domainExtractor.setRefName("streamDomain");
-		    domainExtractor.setTemplate("$1$");
-			
-			//Extract Stream URL
-		    RegexExtractor URLExtractor= new RegexExtractor();
-		    URLExtractor.setName("Exract Stream URL");
-		    URLExtractor.setEnabled(true);
-		    URLExtractor.setProperty(TestElement.TEST_CLASS,RegexExtractor.class.getName());
-		    URLExtractor.setProperty(TestElement.GUI_CLASS,RegexExtractorGui.class.getName());
-		    URLExtractor.setRegex( "{\"streamUrl\":\"https://playlist.fubo.tv(.*)\",\"sessionTrack");
-		    URLExtractor.setMatchNumber(1);
-		    URLExtractor.setRefName("streamDomain");
-		    URLExtractor.setTemplate("$1$");
-		    */
-	        HashTree  getStream = getStream();
+	        ListedHashTree  getStream = getStream();
 			
 		    //GET PLAYLIST
-		    HashTree playList = getPlayList();
+		    ListedHashTree playList = getPlayList();
 		   
 		    //Get Chunk LIST
-		    HashTree chunkList = getTSChunkList();
+		    ListedHashTree chunkList = getTSChunkList();
 		    
-		    HashTree getChunks = getChunks();
+		    ListedHashTree getChunks = getChunks();
 		    
 	        // TestPlan
 	        TestPlan testPlan = new TestPlan();
@@ -141,15 +108,15 @@ public class JmeterCreator {
 	        // Create TestPlan hash tree
 	        
 	       
-	        HashTree jmeterTestPlan = new HashTree();
+	        ListedHashTree jmeterTestPlan = new ListedHashTree();
 	         jmeterTestPlan.add(testPlan);
 	         
-	         jmeterTestPlan.add(new HashTree(threadGroup));
+	         jmeterTestPlan.add(new ListedHashTree(threadGroup));
 	        
-	         HashTree oauthTree = new HashTree(sampler1);
+	         ListedHashTree oauthTree = new ListedHashTree(sampler1);
 	         oauthTree.add(sampler1, jsonProcessor);
 	         /*
-	         HashTree getStream = new HashTree(sampler2);
+	         ListedHashTree getStream = new ListedHashTree(sampler2);
 	         getStream.add(sampler2, headManager);
 	         getStream.add(sampler2, domainExtractor);
 	         getStream.add(sampler2, URLExtractor);
@@ -182,7 +149,7 @@ public class JmeterCreator {
 	    }
 	 
 	 
-	public static HashTree getStream()
+	public static ListedHashTree getStream()
 	{
 		HTTPSampler sampler = createRequest("Get Stream", "GET", "api.fubo.tv", "/v3/kgraph/v1/networks/88199/stream", null);
         //add header for authentication
@@ -216,14 +183,14 @@ public class JmeterCreator {
 	    pathExtractor.setRefName("streamPath");
 	    pathExtractor.setTemplate("$1$");
 	    
-	    HashTree streamTree = new HashTree(sampler);
+	    ListedHashTree streamTree = new ListedHashTree(sampler);
 	    streamTree.add(sampler, headManager);
 	    streamTree.add(sampler, domainExtractor);
 	    streamTree.add(sampler, pathExtractor);
 	    return streamTree;
 	}
 	 
-	public static HashTree getPlayList()
+	public static ListedHashTree getPlayList()
 	{
 		HTTPSampler sampler =  createEmptySampler("Get Play list");
 		sampler.setPostBodyRaw(true);
@@ -254,19 +221,20 @@ public class JmeterCreator {
 	    pathExtractor.setProperty(TestElement.GUI_CLASS,RegexExtractorGui.class.getName());
 
 	    pathExtractor.setRefName("playList");
-	    pathExtractor.setRegex( "(?m)(https://playlist.fubo.tv/)(.*)");
+	    //(?m)(https://playlist.fubo.tv/)([^"]+)
+	    pathExtractor.setRegex( "(?m)(https://playlist.fubo.tv/)([^\"]+)");
 	    pathExtractor.setMatchNumber(0);
 	    pathExtractor.setTemplate("$2$");
 	    
 	    
-	    HashTree streamTree = new HashTree(sampler);
+	    ListedHashTree streamTree = new ListedHashTree(sampler);
 	    streamTree.add(sampler, domainExtractor);
 	    streamTree.add(sampler, pathExtractor);
 	    return streamTree;
 	}
 	 
 	
-	public static HashTree getTSChunkList()
+	public static ListedHashTree getTSChunkList()
 	{
 		HTTPSampler sampler = createEmptySampler("Get .TS list");
 		sampler.setDomain("${mediaDomain}");
@@ -299,7 +267,7 @@ public class JmeterCreator {
 	    pathExtractor.setTemplate("$3$");
 	    
 	    
-	    HashTree tsChunkListTree = new HashTree(sampler);
+	    ListedHashTree tsChunkListTree = new ListedHashTree(sampler);
 	    tsChunkListTree.add(sampler, domainExtractor);
 	    tsChunkListTree.add(sampler, pathExtractor);
 	    return tsChunkListTree;
@@ -356,7 +324,7 @@ public class JmeterCreator {
     }
 	
     
-    public static HashTree getChunks()
+    public static ListedHashTree getChunks()
     {
     	HTTPSampler sampler = createEmptySampler("getChunks");
     	sampler.setDomain("${chunkDomain}");
@@ -365,7 +333,7 @@ public class JmeterCreator {
         sampler.setMethod("GET");
       
         ForeachController controller = forEachController("forEachController");
-        HashTree getChunks = new HashTree(controller);
+        ListedHashTree getChunks = new ListedHashTree(controller);
         getChunks.add(controller, sampler);
         
 		return getChunks;
@@ -420,7 +388,7 @@ public class JmeterCreator {
 		return sampler;
 	}
 	
-	public static HashTree headerManager()
+	public static ListedHashTree headerManager()
 	{
 		HeaderManager headManager = new HeaderManager();
 		headManager.setName("header for Autho");
@@ -430,7 +398,7 @@ public class JmeterCreator {
 		headManager.setProperty("header.name", "Authorization");
 		headManager.setProperty("header.value", "Bearer ${id_token}");
 		
-		HashTree headerManagerTree = new HashTree();
+		ListedHashTree headerManagerTree = new ListedHashTree();
 		headerManagerTree.add(headManager);
 		return headerManagerTree;
 	}
