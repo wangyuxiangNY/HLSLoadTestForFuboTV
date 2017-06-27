@@ -1,8 +1,6 @@
 package com.fubotv.jmeter;
 
 import java.io.FileOutputStream;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.apache.jmeter.control.ForeachController;
 import org.apache.jmeter.control.LoopController;
@@ -24,21 +22,32 @@ import org.apache.jmeter.samplers.SampleSaveConfiguration;
 import org.apache.jmeter.save.SaveService;
 import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.TestPlan;
-import org.apache.jmeter.testelement.property.TestElementProperty;
-import org.apache.jmeter.threads.FindTestElementsUpToRootTraverser;
 import org.apache.jmeter.threads.ThreadGroup;
 import org.apache.jmeter.threads.gui.ThreadGroupGui;
+import org.apache.jmeter.timers.ConstantTimer;
+import org.apache.jmeter.timers.gui.ConstantTimerGui;
 import org.apache.jmeter.util.JMeterUtils;
-import org.apache.jmeter.visualizers.RespTimeGraphVisualizer;
 import org.apache.jmeter.visualizers.ViewResultsFullVisualizer;
 import org.apache.jorphan.collections.ListedHashTree;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class JmeterCreator {
+/*
+ * Class to create HLS_Test.jmx to handle HLS via jmeter API.  
+ * @auther yuxiang wang
+ */
+
+public class HLSloadTestUsingJmeterAPI {
 	
+	  private static  final String USER_NAME = "yuxiang.wang.ny@gmail.com";
+	  private static  final String PASSWORD = "football123";
+		
+	  protected static Logger logger = LoggerFactory.getLogger(HLSloadTestUsingJmeterAPI.class);
+
 	
 	 public static void main(String[] argv) throws Exception {
 	        
-		 
+		  
 		 //JMeter Engine
 	        StandardJMeterEngine jmeter = new StandardJMeterEngine("localhost");
 		
@@ -46,24 +55,10 @@ public class JmeterCreator {
 	         JMeterUtils.initLocale();
 	        JMeterUtils.setJMeterHome("C:\\Users\\azurewangyx\\Desktop\\apache-jmeter-3.2");
 	   
+	        logger.info("Creating HTTP Samplers...");
+	        ListedHashTree  oauthTree = oauth(USER_NAME, PASSWORD);
 	        
-			 HTTPSampler sampler1, sampler2, sampler3; 
-			 
-			//AUTH REQUEST
-	        String  authBodyRaw = "scope=openid+user+offline_access&response_type=token&sso=false&connection=Username-Password-Authentication&username=yuxiang.wang.ny%40gmail.com&password=football123&client_id=d6YiOzgcOnC305cKkBZoydAu62K1z7Ly&grant_type=password&device=Browser";
-	        sampler1 = createRequest("post oauth", "POST", "fubo.auth0.com", "/oauth/ro", authBodyRaw);
-	       
-	        JSONPostProcessor jsonProcessor = new JSONPostProcessor();
-	        jsonProcessor.setName("Extract ID_TOKEN");
-	        jsonProcessor.setEnabled(true);
-	        jsonProcessor.setProperty(TestElement.TEST_CLASS, JSONPostProcessor.class.getName());
-	        jsonProcessor.setProperty(TestElement.GUI_CLASS, JSONPostProcessorGui.class.getName());
-	        jsonProcessor.setRefNames("id_token");
-	        jsonProcessor.setMatchNumbers("1");
-	        jsonProcessor.setJsonPathExpressions("$.id_token");
-	        
-	        
-	        ListedHashTree  getStream = getStream();
+	        ListedHashTree  getStream = getStreamURL();
 			
 		    //GET PLAYLIST
 		    ListedHashTree playList = getPlayList();
@@ -90,7 +85,6 @@ public class JmeterCreator {
 	                LoopControlPanel.class.getName());
 
 	        loopController.setFirst(true);
-	       // loopController.addTestElement(sampler1);
 	        
 	        // ThreadGroup
 	        ThreadGroup threadGroup = new ThreadGroup();
@@ -106,21 +100,13 @@ public class JmeterCreator {
 	        
 	       
 	        // Create TestPlan hash tree
-	        
 	       
 	        ListedHashTree jmeterTestPlan = new ListedHashTree();
 	         jmeterTestPlan.add(testPlan);
 	         
 	         jmeterTestPlan.add(new ListedHashTree(threadGroup));
-	        
-	         ListedHashTree oauthTree = new ListedHashTree(sampler1);
-	         oauthTree.add(sampler1, jsonProcessor);
-	         /*
-	         ListedHashTree getStream = new ListedHashTree(sampler2);
-	         getStream.add(sampler2, headManager);
-	         getStream.add(sampler2, domainExtractor);
-	         getStream.add(sampler2, URLExtractor);
-	         */
+	         jmeterTestPlan.add(threadGroup, setDelayBetweenRequests("50"));
+	         
 	         jmeterTestPlan.add(threadGroup,oauthTree);
 	         jmeterTestPlan.add(threadGroup, getStream);
 	         jmeterTestPlan.add(threadGroup, playList);
@@ -129,27 +115,72 @@ public class JmeterCreator {
 	         jmeterTestPlan.add(threadGroup, getChunks);
 	         
 	         jmeterTestPlan.add( threadGroup, createResultCollector());
-	         
-	         //Here I want to do a in-order travsal to see the ordering of test elements
-	         
-	         /*
-	         FindTestElementsUpToRootTraverser finder = new FindTestElementsUpToRootTraverser("NONEXIST");
-	         System.out.println("About to traverse..");
-	         jmeterTestPlan.traverse(finder);
-	         */
-	         System.out.println("traverse done");
 	        
-	        
-	        // jmeter.configure(jmeterTestPlan);
-	         // jmeter.run();
-	   
-	        // Save to jmx file
-	        SaveService.saveTree(jmeterTestPlan, new FileOutputStream(
-	                "C:\\Users\\azurewangyx\\Desktop\\jmeterExamples\\test.jmx"));
+	         // Save test plan  into jmx file
+		     SaveService.saveTree(jmeterTestPlan, new FileOutputStream(
+		                "C:\\Users\\azurewangyx\\Desktop\\jmeterExamples\\HLS_Test.jmx"));
+	      //  jmeter.configure(jmeterTestPlan);
+	     //   jmeter.run();
+	        logger.info("HLS_Test.jmx is generated.");
+	       
 	    }
 	 
+	/*
+	 * Add delay between requests
+	 *  
+	 *  @param delayInMillisecond
+	 *  
+	 */
+	private static ListedHashTree setDelayBetweenRequests(String delayInMillisecond)
+	{
+		ConstantTimer  timer = new ConstantTimer();
+		timer.setName("Delay between Requests");
+		timer.setEnabled(true);
+		timer.setProperty(TestElement.TEST_CLASS,ConstantTimer.class.getName());
+		timer.setProperty(TestElement.GUI_CLASS,ConstantTimerGui.class.getName());
+		
+		timer.setDelay(delayInMillisecond);
+		
+	    ListedHashTree delayTree = new ListedHashTree(timer);
+	    
+	    return delayTree;
+
+	}
 	 
-	public static ListedHashTree getStream()
+	/* Create HTTPSampler for oauth
+	 * 
+	 * @param userName 
+	 * @param password
+	 * @return  ListedHashTree for oauth
+	 */
+	public static ListedHashTree oauth(String userName, String password)
+	{
+		//AUTH REQUEST
+        String  authBodyRaw = "scope=openid+user+offline_access&response_type=token&sso=false&connection=Username-Password-Authentication&username=yuxiang.wang.ny%40gmail.com&password=football123&client_id=d6YiOzgcOnC305cKkBZoydAu62K1z7Ly&grant_type=password&device=Browser";
+        HTTPSampler sampler = createRequest("post oauth", "POST", "fubo.auth0.com", "/oauth/ro", authBodyRaw);
+       
+        JSONPostProcessor jsonProcessor = new JSONPostProcessor();
+        jsonProcessor.setName("Extract ID_TOKEN");
+        jsonProcessor.setEnabled(true);
+        jsonProcessor.setProperty(TestElement.TEST_CLASS, JSONPostProcessor.class.getName());
+        jsonProcessor.setProperty(TestElement.GUI_CLASS, JSONPostProcessorGui.class.getName());
+        jsonProcessor.setRefNames("id_token");
+        jsonProcessor.setMatchNumbers("1");
+        jsonProcessor.setJsonPathExpressions("$.id_token");
+        
+        
+        ListedHashTree authTree = new ListedHashTree(sampler);
+        authTree.add(sampler, jsonProcessor);
+	    return authTree;
+	}
+	
+	/* Create HTTPSampler to get streamURL 
+	 * 
+	 * @param userName 
+	 * @param password
+	 * @return  ListedHashTree for streamURL
+	 */
+	public static ListedHashTree getStreamURL()
 	{
 		HTTPSampler sampler = createRequest("Get Stream", "GET", "api.fubo.tv", "/v3/kgraph/v1/networks/88199/stream", null);
         //add header for authentication
@@ -190,6 +221,12 @@ public class JmeterCreator {
 	    return streamTree;
 	}
 	 
+	/* Create HTTPSampler to get play list 
+	 * 
+	 * @param userName 
+	 * @param password
+	 * @return  ListedHashTree for play list
+	 */
 	public static ListedHashTree getPlayList()
 	{
 		HTTPSampler sampler =  createEmptySampler("Get Play list");
@@ -222,7 +259,7 @@ public class JmeterCreator {
 
 	    pathExtractor.setRefName("playList");
 	    //(?m)(https://playlist.fubo.tv/)([^"]+)
-	    pathExtractor.setRegex( "(?m)(https://playlist.fubo.tv/)([^\"]+)");
+	    pathExtractor.setRegex( "(?m)(https://playlist.fubo.tv/)([^#\"]+)");
 	    pathExtractor.setMatchNumber(0);
 	    pathExtractor.setTemplate("$2$");
 	    
@@ -233,7 +270,12 @@ public class JmeterCreator {
 	    return streamTree;
 	}
 	 
-	
+	/* Create HTTPSampler to get chunk list 
+	 * 
+	 * @param userName 
+	 * @param password
+	 * @return  ListedHashTree for getting chunk list
+	 */
 	public static ListedHashTree getTSChunkList()
 	{
 		HTTPSampler sampler = createEmptySampler("Get .TS list");
@@ -273,13 +315,17 @@ public class JmeterCreator {
 	    return tsChunkListTree;
 	}
 	 
-	 
+	/* Create HTTPSampler to get streamURL 
+	 * 
+	 * 
+	 * @return  ResultCollector for logging
+	 */ 
 	public static ResultCollector createResultCollector()
 	{
         ResultCollector resultCollector = new ResultCollector();
         resultCollector.setName("View Result Tree");
         resultCollector.setEnabled(true);
-        resultCollector.setErrorLogging(false);
+       // resultCollector.setErrorLogging(true);
         resultCollector.setProperty(TestElement.TEST_CLASS,
         		ResultCollector.class.getName());
         resultCollector.setProperty(TestElement.GUI_CLASS,
@@ -289,6 +335,7 @@ public class JmeterCreator {
         saveConfiguration.setTime(true);
         saveConfiguration.setLatency(true);
         saveConfiguration.setTimestamp(true);
+        
 
         saveConfiguration.setSuccess(true);
         saveConfiguration.setLabel(true);
@@ -306,7 +353,12 @@ public class JmeterCreator {
         return resultCollector;
 	}
 	    
-    
+	/* Create HTTPSampler controller forEach, so that later on we can utilize it 
+	 * to get all the chunks in the chunk list
+	 * 
+	 * @param name controller name
+	 * @return ForeachController
+	 */
     public static ForeachController forEachController(String name)
     {
     	ForeachController  controller = new ForeachController();
@@ -323,7 +375,11 @@ public class JmeterCreator {
     	return controller;
     }
 	
-    
+    /* Create HTTPSampler to get chunk content (.ts files)
+	 * 
+	 *
+	 * @return  ListedHashTree for getting chunks
+	 */
     public static ListedHashTree getChunks()
     {
     	HTTPSampler sampler = createEmptySampler("getChunks");
@@ -344,6 +400,17 @@ public class JmeterCreator {
 		return createRequest(sampleName, method, "https", domain, path, body);
 	}
     
+    /* Utility method to build up a request
+     * 
+     * @param sampleName
+     * @param method
+     * @param protocol
+     * @param domain
+     * @param path
+     * @param body for 'POST' and 'PUT' request
+     * @return HTTPSampler
+     * 
+     */
 	public static HTTPSampler createRequest(String sampleName, String method, String protocol, String domain, String path, String body)
 	{
 		HTTPSampler sampler = new HTTPSampler();
@@ -371,6 +438,12 @@ public class JmeterCreator {
         
 	}
 	
+	/*
+	 * Utility method to create an empty sampler 
+	 * 
+	 * @param name Sample Name
+	 * @return HTTPSampler
+	 */
 	private static HTTPSampler createEmptySampler(String name)
 	{
 		HTTPSampler sampler = new HTTPSampler();
@@ -388,6 +461,12 @@ public class JmeterCreator {
 		return sampler;
 	}
 	
+	/*
+	 * to create a headManager containing  id_token in the headers FOR AUTHORIZATION
+	 * 
+	 * @return ListedHashTree representing headManager
+	 * 
+	 */
 	public static ListedHashTree headerManager()
 	{
 		HeaderManager headManager = new HeaderManager();
@@ -402,6 +481,11 @@ public class JmeterCreator {
 		headerManagerTree.add(headManager);
 		return headerManagerTree;
 	}
+	
+	/*
+	 * To  create logging
+	 * @return ResultCollector
+	 */
 	public static ResultCollector resultCollector()
 	{
 		// Result collector
@@ -424,12 +508,10 @@ public class JmeterCreator {
 	    saveConfiguration.setUrl(true);
 	    saveConfiguration.setRequestHeaders(true);
         saveConfiguration.setResponseData(true);
-
-       // saveConfiguration.setAsXml(false);
         
 	    resultCollector.setSaveConfig(saveConfiguration);
 	    
 	    return resultCollector;
 	}
-	
 }
+	
